@@ -225,14 +225,15 @@
 //! One thing that this example exposes is that this crate is a rather low level library. It does not have
 //! any inherent knowledge of user interfaces, directions or boxes. Thus for use in a user interface this
 //! crate should ideally be wrapped by a higher level API, which is outside the scope of this crate.
-use std::sync::Arc;
-use std::collections::HashMap;
-use std::collections::hash_map::{Entry};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::Arc,
+};
 
-mod solver_impl;
 mod operators;
+mod solver_impl;
 
-static VARIABLE_ID: ::std::sync::atomic::AtomicUsize = ::std::sync::atomic::ATOMIC_USIZE_INIT;
+static VARIABLE_ID: ::std::sync::atomic::AtomicUsize = ::std::sync::atomic::AtomicUsize::new(0);
 
 /// Identifies a variable for the constraint solver.
 /// Each new variable is unique in the view of the solver, but copying or cloning the variable produces
@@ -252,15 +253,15 @@ impl Variable {
 #[derive(Copy, Clone, Debug)]
 pub struct Term {
     pub variable: Variable,
-    pub coefficient: f64
+    pub coefficient: f64,
 }
 
 impl Term {
     /// Construct a new Term from a variable and a coefficient.
     fn new(variable: Variable, coefficient: f64) -> Term {
         Term {
-            variable: variable,
-            coefficient: coefficient
+            variable,
+            coefficient,
         }
     }
 }
@@ -270,7 +271,7 @@ impl Term {
 #[derive(Clone, Debug)]
 pub struct Expression {
     pub terms: Vec<Term>,
-    pub constant: f64
+    pub constant: f64,
 }
 
 impl Expression {
@@ -278,7 +279,7 @@ impl Expression {
     pub fn from_constant(v: f64) -> Expression {
         Expression {
             terms: Vec::new(),
-            constant: v
+            constant: v,
         }
     }
     /// Constructs an expression from a single term. Forms an expression of the form _n x_
@@ -286,15 +287,12 @@ impl Expression {
     pub fn from_term(term: Term) -> Expression {
         Expression {
             terms: vec![term],
-            constant: 0.0
+            constant: 0.0,
         }
     }
     /// General constructor. Each `Term` in `terms` is part of the sum forming the expression, as well as `constant`.
     pub fn new(terms: Vec<Term>, constant: f64) -> Expression {
-        Expression {
-            terms: terms,
-            constant: constant
-        }
+        Expression { terms, constant }
     }
     /// Mutates this expression by multiplying it by minus one.
     pub fn negate(&mut self) {
@@ -345,9 +343,9 @@ pub mod strength {
     /// Create a constraint as a linear combination of STRONG, MEDIUM and WEAK strengths, corresponding to `a`
     /// `b` and `c` respectively. The result is further multiplied by `w`.
     pub fn create(a: f64, b: f64, c: f64, w: f64) -> f64 {
-        (a * w).max(0.0).min(1000.0) * 1_000_000.0 +
-            (b * w).max(0.0).min(1000.0) * 1000.0 +
-            (c * w).max(0.0).min(1000.0)
+        (a * w).max(0.0).min(1000.0) * 1_000_000.0
+            + (b * w).max(0.0).min(1000.0) * 1000.0
+            + (c * w).max(0.0).min(1000.0)
     }
     pub const REQUIRED: f64 = 1_001_001_000.0;
     pub const STRONG: f64 = 1_000_000.0;
@@ -368,15 +366,15 @@ pub enum RelationalOperator {
     /// `==`
     Equal,
     /// `>=`
-    GreaterOrEqual
+    GreaterOrEqual,
 }
 
 impl std::fmt::Display for RelationalOperator {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            RelationalOperator::LessOrEqual => write!(fmt, "<=") ?,
-            RelationalOperator::Equal => write!(fmt, "==") ?,
-            RelationalOperator::GreaterOrEqual => write!(fmt, ">=") ?,
+            RelationalOperator::LessOrEqual => write!(fmt, "<=")?,
+            RelationalOperator::Equal => write!(fmt, "==")?,
+            RelationalOperator::GreaterOrEqual => write!(fmt, ">=")?,
         };
         Ok(())
     }
@@ -386,7 +384,7 @@ impl std::fmt::Display for RelationalOperator {
 struct ConstraintData {
     expression: Expression,
     strength: f64,
-    op: RelationalOperator
+    op: RelationalOperator,
 }
 
 /// A constraint, consisting of an equation governed by an expression and a relational operator,
@@ -401,8 +399,8 @@ impl Constraint {
     pub fn new(e: Expression, op: RelationalOperator, strength: f64) -> Constraint {
         Constraint(Arc::new(ConstraintData {
             expression: e,
-            op: op,
-            strength: strength
+            op,
+            strength,
         }))
     }
     /// The expression of the left hand side of the constraint equation.
@@ -429,7 +427,7 @@ impl ::std::hash::Hash for Constraint {
 impl PartialEq for Constraint {
     fn eq(&self, other: &Constraint) -> bool {
         use ::std::ops::Deref;
-        self.0.deref() as *const _ == other.0.deref() as *const _
+        std::ptr::eq(self.0.deref(), other.0.deref())
     }
 }
 
@@ -443,7 +441,7 @@ pub enum WeightedRelation {
     /// `<=`
     LE(f64),
     /// `>=`
-    GE(f64)
+    GE(f64),
 }
 impl From<WeightedRelation> for (RelationalOperator, f64) {
     fn from(r: WeightedRelation) -> (RelationalOperator, f64) {
@@ -466,21 +464,25 @@ enum SymbolType {
     External,
     Slack,
     Error,
-    Dummy
+    Dummy,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Symbol(usize, SymbolType);
 
 impl Symbol {
-    fn invalid() -> Symbol { Symbol(0, SymbolType::Invalid) }
-    fn type_(&self) -> SymbolType { self.1 }
+    fn invalid() -> Symbol {
+        Symbol(0, SymbolType::Invalid)
+    }
+    fn type_(&self) -> SymbolType {
+        self.1
+    }
 }
 
 #[derive(Clone)]
 struct Row {
     cells: HashMap<Symbol, f64>,
-    constant: f64
+    constant: f64,
 }
 
 fn near_zero(value: f64) -> bool {
@@ -496,7 +498,7 @@ impl Row {
     fn new(constant: f64) -> Row {
         Row {
             cells: HashMap::new(),
-            constant: constant
+            constant,
         }
     }
     fn add(&mut self, v: f64) -> f64 {
@@ -505,9 +507,11 @@ impl Row {
     }
     fn insert_symbol(&mut self, s: Symbol, coefficient: f64) {
         match self.cells.entry(s) {
-            Entry::Vacant(entry) => if !near_zero(coefficient) {
-                entry.insert(coefficient);
-            },
+            Entry::Vacant(entry) => {
+                if !near_zero(coefficient) {
+                    entry.insert(coefficient);
+                }
+            }
             Entry::Occupied(mut entry) => {
                 *entry.get_mut() += coefficient;
                 if near_zero(*entry.get_mut()) {
@@ -538,10 +542,11 @@ impl Row {
     }
 
     fn solve_for_symbol(&mut self, s: Symbol) {
-        let coeff = -1.0 / match self.cells.entry(s) {
-            Entry::Occupied(entry) => entry.remove(),
-            Entry::Vacant(_) => unreachable!()
-        };
+        let coeff = -1.0
+            / match self.cells.entry(s) {
+                Entry::Occupied(entry) => entry.remove(),
+                Entry::Vacant(_) => unreachable!(),
+            };
         self.constant *= coeff;
         for (_, v) in &mut self.cells {
             *v *= coeff;
@@ -575,7 +580,7 @@ pub enum AddConstraintError {
     UnsatisfiableConstraint,
     /// The solver entered an invalid state. If this occurs please report the issue. This variant specifies
     /// additional details as a string.
-    InternalSolverError(&'static str)
+    InternalSolverError(&'static str),
 }
 
 /// The possible error conditions that `Solver::remove_constraint` can fail with.
@@ -585,7 +590,7 @@ pub enum RemoveConstraintError {
     UnknownConstraint,
     /// The solver entered an invalid state. If this occurs please report the issue. This variant specifies
     /// additional details as a string.
-    InternalSolverError(&'static str)
+    InternalSolverError(&'static str),
 }
 
 /// The possible error conditions that `Solver::add_edit_variable` can fail with.
@@ -594,7 +599,7 @@ pub enum AddEditVariableError {
     /// The specified variable is already marked as an edit variable in the solver.
     DuplicateEditVariable,
     /// The specified strength was `REQUIRED`. This is illegal for edit variable strengths.
-    BadRequiredStrength
+    BadRequiredStrength,
 }
 
 /// The possible error conditions that `Solver::remove_edit_variable` can fail with.
@@ -604,7 +609,7 @@ pub enum RemoveEditVariableError {
     UnknownEditVariable,
     /// The solver entered an invalid state. If this occurs please report the issue. This variant specifies
     /// additional details as a string.
-    InternalSolverError(&'static str)
+    InternalSolverError(&'static str),
 }
 
 /// The possible error conditions that `Solver::suggest_value` can fail with.
@@ -614,7 +619,7 @@ pub enum SuggestValueError {
     UnknownEditVariable,
     /// The solver entered an invalid state. If this occurs please report the issue. This variant specifies
     /// additional details as a string.
-    InternalSolverError(&'static str)
+    InternalSolverError(&'static str),
 }
 
 #[derive(Debug, Copy, Clone)]

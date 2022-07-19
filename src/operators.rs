@@ -1,12 +1,10 @@
 use ::std::ops;
-use {
-    Term,
-    Variable,
-    Expression,
-    WeightedRelation,
-    PartialConstraint,
-    Constraint
-};
+use Constraint;
+use Expression;
+use PartialConstraint;
+use Term;
+use Variable;
+use WeightedRelation;
 
 // Relation
 
@@ -37,7 +35,7 @@ impl ops::BitOr<WeightedRelation> for Term {
 impl ops::BitOr<WeightedRelation> for Expression {
     type Output = PartialConstraint;
     fn bitor(self, r: WeightedRelation) -> PartialConstraint {
-        PartialConstraint(self.into(), r)
+        PartialConstraint(self, r)
     }
 }
 
@@ -501,7 +499,7 @@ impl ops::Mul<Expression> for f64 {
     fn mul(self, mut e: Expression) -> Expression {
         e.constant *= self;
         for t in &mut e.terms {
-            *t = *t * self;
+            *t *= self;
         }
         e
     }

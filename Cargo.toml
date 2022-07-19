@@ -1,6 +1,7 @@
 [package]
 name = "cassowary"
 version = "0.3.0"
+edition = "2021"
 authors = ["Dylan Ede <dylanede@googlemail.com>"]
 description = """
 A Rust implementation of the Cassowary linear constraint solving algorithm.

@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use cassowary::Variable;
 
@@ -19,14 +17,17 @@ impl Values {
     }
 }
 
-pub fn new_values() -> (Box<Fn(Variable) -> f64>, Box<Fn(&[(Variable, f64)])>) {
+pub fn new_values() -> (
+    Box<dyn Fn(Variable) -> f64>,
+    Box<dyn Fn(&[(Variable, f64)])>,
+) {
     let values = Values(Rc::new(RefCell::new(HashMap::new())));
     let value_of = {
         let values = values.clone();
         move |v| values.value_of(v)
     };
     let update_values = {
-        let values = values.clone();
+        let values = values;
         move |changes: &[_]| {
             values.update_values(changes);
         }
